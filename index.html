@@ -1758,6 +1758,107 @@
         }
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
+        // ========== SISTEMA DE SINCRONIZACIÓN (EXPORTAR/IMPORTAR) ==========
+// Añade esta función dentro del componente App, junto a las otras funciones
+// Pero como vamos a pegar todo al final, la añadimos con un hook de efecto global.
+
+// Modificamos el componente App original: añadimos dos botones en el tab Progreso.
+// Para no reescribir todo, hacemos un "patch" usando useEffect para inyectar botones? 
+// Mejor: proporcionamos el código modificado de la sección de Progreso.
+// Como el usuario no quiere modificar manualmente, le daremos el JSX completo de la pestaña Progreso para reemplazar.
+// Pero eso sería modificar. En su lugar, podemos añadir un nuevo componente flotante o un modal de sincronización.
+// Voy a crear un componente SyncPanel que se muestra como un modal desde cualquier lugar.
+
+// NOTA: Para evitar modificar el código existente, añadiremos un botón flotante en la esquina inferior derecha
+// que abra un panel de sincronización. Así no tocas nada de la interfaz actual.
+
+// Añade este código completo al final del archivo, justo antes de root.render.
+
+const { useCallback } = React;
+
+// Componente de sincronización flotante
+function SyncButton() {
+  const [showModal, setShowModal] = useState(false);
+  
+  const exportData = () => {
+    const dataToExport = {
+      userStats: JSON.parse(localStorage.getItem('mullerStats') || '{}'),
+      savedScripts: JSON.parse(localStorage.getItem('mullerScripts') || '[]'),
+      customVocabLessons: JSON.parse(localStorage.getItem('mullerCustomVocab') || '[]'),
+      version: '1.0',
+      exportDate: new Date().toISOString()
+    };
+    const blob = new Blob([JSON.stringify(dataToExport, null, 2)], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `muller_progreso_${new Date().toISOString().slice(0,19)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+  
+  const importData = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = JSON.parse(e.target.result);
+        if (data.userStats) localStorage.setItem('mullerStats', JSON.stringify(data.userStats));
+        if (data.savedScripts) localStorage.setItem('mullerScripts', JSON.stringify(data.savedScripts));
+        if (data.customVocabLessons) localStorage.setItem('mullerCustomVocab', JSON.stringify(data.customVocabLessons));
+        alert('✅ Datos importados correctamente. Recarga la página para ver los cambios.');
+        window.location.reload();
+      } catch(err) { alert('❌ Archivo inválido'); }
+    };
+    reader.readAsText(file);
+  };
+  
+  return (
+    <>
+      <button 
+        onClick={() => setShowModal(true)}
+        className="fixed bottom-20 right-4 z-50 bg-blue-600 hover:bg-blue-500 text-white p-3 rounded-full shadow-xl"
+        title="Sincronizar entre dispositivos"
+      >
+        <Icon name="cloud" className="w-6 h-6" />
+      </button>
+      {showModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 rounded-2xl p-6 max-w-md w-full border border-blue-500">
+            <h2 className="text-xl font-bold mb-4 flex items-center gap-2"><Icon name="cloud" /> Sincronización</h2>
+            <p className="text-gray-300 text-sm mb-4">Exporta tus datos en este dispositivo y luego impórtalos en otro.</p>
+            <button onClick={exportData} className="w-full bg-green-600 py-2 rounded-lg mb-3 flex items-center justify-center gap-2"><Icon name="download" /> Exportar progreso</button>
+            <label className="w-full bg-blue-600 py-2 rounded-lg text-center block cursor-pointer hover:bg-blue-500 flex items-center justify-center gap-2">
+              <Icon name="upload" /> Importar archivo
+              <input type="file" accept=".json" onChange={importData} className="hidden" />
+            </label>
+            <button onClick={() => setShowModal(false)} className="w-full mt-4 bg-gray-700 py-2 rounded-lg">Cerrar</button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+// Añadimos el botón flotante al final del render del App
+// Para ello, modificamos el return del App original. Pero como no queremos modificar, 
+// podemos usar un portal o simplemente añadirlo en el body mediante un useEffect.
+// Lo más limpio es modificar ligeramente el App original, pero el usuario pidió no modificar.
+// En su lugar, vamos a inyectar el botón usando ReactDOM.createPortal después de que se monte la app.
+// Esto no toca el código de App.
+
+// Ejecutamos esto después de que React renderice:
+setTimeout(() => {
+  const rootDiv = document.getElementById('root');
+  if (rootDiv && !document.getElementById('sync-button-container')) {
+    const syncContainer = document.createElement('div');
+    syncContainer.id = 'sync-button-container';
+    rootDiv.appendChild(syncContainer);
+    const syncRoot = ReactDOM.createRoot(syncContainer);
+    syncRoot.render(<SyncButton />);
+  }
+}, 100);
         root.render(<App />);
     </script>
 </body>
